@@ -1,3 +1,6 @@
+#ifndef RAYTRACER_MAT4_H
+#define RAYTRACER_MAT4_H
+
 #include <cmath>
 #include <iostream>
 
@@ -105,3 +108,5 @@ class Mat4 {
             return result;
         }
 };
+
+#endif // RAYTRACER_MAT4_H

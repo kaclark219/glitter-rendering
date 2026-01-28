@@ -1,3 +1,6 @@
+#ifndef RAYTRACER_VEC3_H
+#define RAYTRACER_VEC3_H
+
 #include <cmath>
 #include "mat4.h"
 
@@ -9,16 +12,16 @@ class Vec3 {
         // default constructor
         Vec3() { x = y = z = 0; }
 
-        // three parameter constructor
+        // three parameter constructor (does NOT normalize)
         Vec3(float x_val, float y_val, float z_val) {
             x = x_val;
             y = y_val;
             z = z_val;
-            this->normalize();
         }
 
-        // copy constructor
-        Vec3(const Vec3 &v) : x(v.x), y(v.y), z(v.z) {};
+        // use default copy constructor/assignment
+        Vec3(const Vec3 &v) = default;
+        Vec3& operator=(const Vec3 &v) = default;
 
         // getters
         float getX() const { return x; }
@@ -26,18 +29,9 @@ class Vec3 {
         float getZ() const { return z; }
 
         // setters
-        void setX(float x_val) {
-            x = x_val;
-            this->normalize();
-        }
-        void setY(float y_val) {
-            y = y_val;
-            this->normalize();
-        }
-        void setZ(float z_val) {
-            z = z_val;
-            this->normalize();
-        }
+        void setX(float x_val) { x = x_val; }
+        void setY(float y_val) { y = y_val; }
+        void setZ(float z_val) { z = z_val; }
 
         // add two vectors
         Vec3 add(const Vec3 v1, const Vec3 v2) const {
@@ -86,3 +80,5 @@ class Vec3 {
             return Vec3(tx, ty, tz);
         }
 };
+
+#endif // RAYTRACER_VEC3_H

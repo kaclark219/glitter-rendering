@@ -1,3 +1,6 @@
+#ifndef RAYTRACER_POINT_H
+#define RAYTRACER_POINT_H
+
 #include <cmath>
 #include "mat4.h"
 
@@ -11,8 +14,9 @@ class Point {
         // three parameter constructor
         Point(float x_val, float y_val, float z_val) : x(x_val), y(y_val), z(z_val) {}
 
-        // copy constructor
-        Point(const Point &p) : x(p.x), y(p.y), z(p.z) {}
+        // use default copy constructor/assignment
+        Point(const Point &p) = default;
+        Point& operator=(const Point &p) = default;
 
         // getters
         float getX() const { return x; }
@@ -39,3 +43,5 @@ class Point {
             return Point(tx, ty, tz);
         }
 };
+
+#endif // RAYTRACER_POINT_H

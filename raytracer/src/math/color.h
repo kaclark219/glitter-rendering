@@ -1,3 +1,6 @@
+#ifndef RAYTRACER_COLOR_H
+#define RAYTRACER_COLOR_H
+
 class Color {
     public:
         int r, g, b;
@@ -12,3 +15,5 @@ class Color {
         Color(const Color &c) = default;
         Color& operator=(const Color &c) = default;
 };
+
+#endif // RAYTRACER_COLOR_H

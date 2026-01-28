@@ -1,6 +1,10 @@
+#ifndef RAYTRACER_OBJECT_H
+#define RAYTRACER_OBJECT_H
+
 #include "math/point.h"
 #include "math/vec3.h"
 #include "math/color.h"
+#include "math/ray.h"
 
 class Object {
     protected:
@@ -20,8 +24,13 @@ class Object {
         void setColor(const Color &col) { color = col; }
 
         // intersect ray (origin as Point, direction as Vec3), returns hit distance in t
-        virtual bool intersect(const Point& rayOrigin, const Vec3& rayDirection, float& t) const = 0;
+        virtual bool intersect(const Ray& ray, float& t) const = 0;
 
         // surface normal (unit) at surface point p
         virtual Vec3 normal(const Point& p) const = 0;
+
+        // build polygons from triangles
+        
 };
+
+#endif // RAYTRACER_OBJECT_H

@@ -1,48 +1,65 @@
+#ifndef RAYTRACER_SPHERE_H
+#define RAYTRACER_SPHERE_H
+
 #include "../object.h"
 #include "../math/point.h"
 #include "../math/vec3.h"
+#include "../math/ray.h"
 
 class Sphere : public Object {
     private:
-        Vec3 center;
+        Point center;
         float radius;
 
     public:
         // default constructor
-        Sphere() : Object(), center(Vec3(0, 0, 0)), radius(1.0f) {}
+        Sphere() : Object(), center(Point()), radius(1.0f) {}
 
-        // two parameter constructor with optional material index
-        Sphere(const Vec3& c, float r, int mat = -1) : Object(mat), center(c), radius(r) {}
+        // constructor with center, radius, optional material index and color
+        Sphere(const Point& c, float r, int mat = -1, const Color &col = Color()) : Object(mat, col), center(c), radius(r) {}
 
         // copy constructor
         Sphere(const Sphere &s) : Object(s), center(s.center), radius(s.radius) {}
 
         // getters
-        Vec3 getCenter() const { return center; }
+        Point getCenter() const { return center; }
         float getRadius() const { return radius; }
 
         // setters
-        void setCenter(const Vec3& c) { center = c; }
+        void setCenter(const Point& c) { center = c; }
         void setRadius(float r) { radius = r; }
 
         // intersection with ray (origin as Point)
-        bool intersect(const Point& rayOrigin, const Vec3& rayDirection, float& t) const override {
-            Vec3 ro(rayOrigin.getX(), rayOrigin.getY(), rayOrigin.getZ());
-            Vec3 oc = ro.subtract(ro, center);
-            float a = rayDirection.dot(rayDirection, rayDirection);
-            float b = 2.0f * oc.dot(oc, rayDirection);
-            float c = oc.dot(oc, oc) - radius * radius;
+        bool intersect(const Ray& ray, float& t) const override {
+            // compute ray-sphere quadratic using scalar arithmetic to avoid Vec3 normalization issues
+            float ox = ray.getOrigin().getX() - center.getX();
+            float oy = ray.getOrigin().getY() - center.getY();
+            float oz = ray.getOrigin().getZ() - center.getZ();
+
+            float dx = ray.getDirection().getX();
+            float dy = ray.getDirection().getY();
+            float dz = ray.getDirection().getZ();
+
+            float a = dx*dx + dy*dy + dz*dz;
+            float b = 2.0f * (ox*dx + oy*dy + oz*dz);
+            float c = ox*ox + oy*oy + oz*oz - radius * radius;
+
             float discriminant = b * b - 4 * a * c;
-            if (discriminant < 0) {
-                return false;
-            } else {
-                t = (-b - std::sqrt(discriminant)) / (2.0f * a);
-                return true;
-            }
+            if (discriminant < 0.0f) return false;
+
+            float sqrtD = std::sqrt(discriminant);
+            float t0 = (-b - sqrtD) / (2.0f * a);
+            float t1 = (-b + sqrtD) / (2.0f * a);
+            const float EPS = 1e-6f;
+            if (t0 > EPS) { t = t0; return true; }
+            if (t1 > EPS) { t = t1; return true; }
+            return false;
         }
 
         Vec3 normal(const Point& p) const override {
-            Vec3 vp(p.getX() - center.getX(), p.getY() - center.getY(), p.getZ() - center.getZ());
-            return vp; // Vec3 ctor normalizes
+            Vec3 n(p.getX() - center.getX(), p.getY() - center.getY(), p.getZ() - center.getZ());
+            return n; // Vec3 normalizes
         }
 };
+
+#endif // RAYTRACER_SPHERE_H

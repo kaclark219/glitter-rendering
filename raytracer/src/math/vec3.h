@@ -1,4 +1,5 @@
 #include <cmath>
+#include "mat4.h"
 
 class Vec3 {
     private:
@@ -38,6 +39,16 @@ class Vec3 {
             this->normalize();
         }
 
+        // add two vectors
+        Vec3 add(const Vec3 &v) const {
+            return Vec3(x + v.x, y + v.y, z + v.z);
+        }
+
+        // subtract two vectors
+        Vec3 subtract(const Vec3 &v) const {
+            return Vec3(x - v.x, y - v.y, z - v.z);
+        }
+
         // normalize the vector
         void normalize() {
             float length = std::sqrt(x*x + y*y + z*z);
@@ -46,5 +57,32 @@ class Vec3 {
                 y /= length;
                 z /= length;
             }
+        }
+
+        // cross product
+        Vec3 cross(const Vec3 v1, const Vec3 v2) const {
+            return Vec3(
+                v1.y * v2.z - v1.z * v2.y,
+                v1.z * v2.x - v1.x * v2.z,
+                v1.x * v2.y - v1.y * v2.x
+            );
+        }
+
+        // dot product
+        float dot(const Vec3 v1, const Vec3 v2) const {
+            return v1.x * v2.x + v1.y * v2.y + v1.z * v2.z;
+        }
+
+        // length of the vector
+        float length() const {
+            return std::sqrt(x*x + y*y + z*z);
+        }
+
+        // transform the vector by a 4x4 matrix
+        Vec3 transform(const Mat4 &m) const {
+            float tx = m.get(0,0) * x + m.get(0,1) * y + m.get(0,2) * z + m.get(0,3);
+            float ty = m.get(1,0) * x + m.get(1,1) * y + m.get(1,2) * z + m.get(1,3);
+            float tz = m.get(2,0) * x + m.get(2,1) * y + m.get(2,2) * z + m.get(2,3);
+            return Vec3(tx, ty, tz);
         }
 };

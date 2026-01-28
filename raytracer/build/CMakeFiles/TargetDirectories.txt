@@ -1,3 +1,0 @@
-/home/mygblvsh/Documents/Programming/CSCI.711.01/ray-tracer/raytracer/build/CMakeFiles/raytracer.dir
-/home/mygblvsh/Documents/Programming/CSCI.711.01/ray-tracer/raytracer/build/CMakeFiles/edit_cache.dir
-/home/mygblvsh/Documents/Programming/CSCI.711.01/ray-tracer/raytracer/build/CMakeFiles/rebuild_cache.dir

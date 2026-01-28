@@ -1,1 +1,0 @@
-/usr/bin/c++ -O3 -DNDEBUG CMakeFiles/raytracer.dir/src/main.cpp.o CMakeFiles/raytracer.dir/src/render_cpu.cpp.o CMakeFiles/raytracer.dir/src/image/image_ppm.cpp.o -o raytracer 

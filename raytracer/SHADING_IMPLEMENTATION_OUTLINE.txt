@@ -1,0 +1,298 @@
+BASIC SHADING IMPLEMENTATION OUTLINE FOR RAY TRACER
+====================================================
+
+Based on the UML diagram provided and current code structure.
+
+====================
+1. MATERIAL SYSTEM
+====================
+
+1.1 Create Material Class (src/components/material.h)
+   - Define base Material class with properties:
+     * ambient color/coefficient (ka)
+     * diffuse color/coefficient (kd)
+     * specular color/coefficient (ks)
+     * shininess/specular exponent (n or alpha)
+     * reflectivity coefficient (kr) [optional for basic shading]
+   - Include CUDA_CALLABLE macros for GPU compatibility
+   - Add constructors and getters/setters
+
+1.2 Predefined Materials
+   - Create common material presets:
+     * Matte (high diffuse, low specular)
+     * Plastic (moderate diffuse, moderate specular)
+     * Metal (low diffuse, high specular, high shininess)
+     * Glass (reflective/refractive) [advanced]
+
+====================
+2. LIGHT SOURCES
+====================
+
+2.1 Create LightSource Base Class (src/components/light.h)
+   - Properties:
+     * position (Point)
+     * color (Color - use floats 0.0-1.0 instead of int 0-255)
+     * intensity (float)
+   - Virtual method: computeLighting(point, normal, view_dir)
+   - Include CUDA_CALLABLE macros
+
+2.2 Point Light Implementation
+   - Inherits from LightSource
+   - Implements basic point light with position
+   - No attenuation initially (can add 1/(a + b*d + c*d^2) later)
+
+2.3 Directional Light (Optional)
+   - For simulating sun/distant light
+   - Has direction instead of position
+   - No falloff with distance
+
+====================
+3. WORLD/SCENE STRUCTURE
+====================
+
+3.1 Create World Class (src/world.h)
+   - Properties:
+     * vector<unique_ptr<Object>> objectList
+     * vector<unique_ptr<LightSource>> lightList
+     * vector<Material> materials (or map<int, Material>)
+     * ambient light color/intensity
+   - Methods:
+     * addObject(Object*)
+     * addLight(LightSource*)
+     * addMaterial(Material)
+     * trace(Ray) -> IntersectData
+
+3.2 IntersectData Structure (src/components/intersect_data.h)
+   - Store ray intersection information:
+     * Point hit_point
+     * Vec3 normal (surface normal at hit)
+     * Vec3 incoming (ray direction)
+     * float t (distance along ray)
+     * Object* object (or material index)
+     * bool hit (did intersection occur)
+
+====================
+4. ILLUMINATION MODEL
+====================
+
+4.1 Create Illumination Base Class (src/components/illumination.h)
+   - Abstract base with pure virtual method:
+     * Color illuminate(const IntersectData& data, const vector<LightSource*>& lights,
+                       const Material& material, const Vec3& view_dir)
+
+4.2 Phong Illumination Model (src/components/phong.h)
+   - Implements illuminate() using Phong formula:
+     * I = ka*Ia + Σ[kd*(N·L)*Il + ks*(R·V)^n*Il]
+     * Where:
+       - ka = ambient coefficient
+       - Ia = ambient light intensity
+       - kd = diffuse coefficient
+       - N = surface normal (normalized)
+       - L = light direction (normalized)
+       - Il = light intensity/color
+       - ks = specular coefficient
+       - R = reflection of L around N
+       - V = view direction (normalized)
+       - n = shininess exponent
+
+4.3 Blinn-Phong Alternative (Optional)
+   - Uses halfway vector H = (L + V)/|L + V|
+   - Specular: ks*(N·H)^n instead of (R·V)^n
+   - Computationally cheaper, slightly different appearance
+
+====================
+5. COLOR SYSTEM MODIFICATIONS
+====================
+
+5.1 Update Color Class (src/components/color.h)
+   - Add float-based constructors: Color(float r, float g, float b) for 0.0-1.0 range
+   - Add multiplication operator: Color * float
+   - Add addition operator: Color + Color
+   - Add clamping method: clamp values to 0-255 for final output
+   - Add conversion from float RGB to int RGB
+
+5.2 Utility Functions
+   - colorToFloat(Color) -> (r/255, g/255, b/255)
+   - floatToColor(float r, float g, float b) -> Color(int)
+   - clamp(float value, float min, float max)
+
+====================
+6. RENDERING PIPELINE UPDATES
+====================
+
+6.1 Update render_cpu.cpp
+   - Create World instance instead of vector<Object>
+   - Add materials to World:
+     * Material for yellow sphere (mat_index 0)
+     * Material for gray sphere (mat_index 1)
+     * Material for red floor (mat_index 2)
+   - Add lights to World:
+     * Point light above and to the side (e.g., at (2, 3, -1))
+     * Optionally: ambient light or second fill light
+   - Update Object creation to use material indices
+   
+6.2 Ray Tracing Loop Modifications (render_cpu.cpp)
+   - Instead of just finding nearest intersection:
+     a) Find nearest intersection and store IntersectData
+     b) If hit occurred:
+        * Get hit point: origin + t * direction
+        * Get surface normal: obj->normal(hit_point)
+        * Get material from object's material index
+        * Compute view direction: -ray.direction (normalized)
+        * Call illumination model to get final color
+        * Account for shadow rays (optional for basic shading)
+     c) Set pixel to computed color
+
+6.3 Shadow Ray Implementation (Optional but Recommended)
+   - For each light source:
+     * Cast shadow ray from hit_point to light position
+     * Check if any object blocks the path (t between epsilon and 1.0)
+     * If blocked, don't add that light's contribution
+   - Prevents lighting from "passing through" objects
+
+====================
+7. RENDER CUDA UPDATES
+====================
+
+7.1 Update render_cuda.cu
+   - Copy all structures to GPU:
+     * Materials array
+     * Lights array
+     * Modified object array with material indices
+   - Implement same shading logic in CUDA kernel
+   - Ensure all classes/functions use CUDA_CALLABLE
+
+7.2 GPU Memory Management
+   - Allocate device memory for lights
+   - Allocate device memory for materials
+   - Copy to device before kernel launch
+   - Free after rendering
+
+====================
+8. IMPLEMENTATION ORDER
+====================
+
+Recommended step-by-step implementation:
+
+STEP 1: Core Data Structures (CPU only first)
+   □ Create Material class
+   □ Create LightSource class
+   □ Create IntersectData struct
+   □ Update Color class for float operations
+
+STEP 2: World Setup
+   □ Create World class
+   □ Modify render_cpu.cpp to use World
+   □ Add 1-2 lights to scene
+   □ Assign materials to objects
+
+STEP 3: Basic Diffuse Shading
+   □ Create simple illuminate function with just diffuse term
+   □ Update ray tracing loop to compute normals and lighting
+   □ Test with single point light
+   □ Verify shading looks reasonable
+
+STEP 4: Add Ambient and Specular
+   □ Add ambient term (constant lighting)
+   □ Add specular term (Phong reflection)
+   □ Tune material coefficients for good appearance
+
+STEP 5: Shadow Rays (Optional)
+   □ Implement shadow ray casting
+   □ Block light contributions when occluded
+   □ Add small epsilon to avoid self-shadowing
+
+STEP 6: Refactor into Illumination Classes
+   □ Create Illumination base class
+   □ Create Phong class implementing illuminate()
+   □ Replace direct calculations with class calls
+
+STEP 7: GPU Implementation
+   □ Add CUDA_CALLABLE to all new classes
+   □ Update render_cuda.cu with same logic
+   □ Test CUDA rendering matches CPU
+
+====================
+9. TESTING CHECKLIST
+====================
+
+□ Sphere facing light is brighter than back
+□ Specular highlights visible on spheres
+□ Floor shows shading gradient
+□ Multiple lights contribute correctly
+□ Shadows are cast (if implemented)
+□ Colors match expected material properties
+□ No artifacts (NaN, black spots, etc.)
+□ CPU and GPU renders match
+
+====================
+10. COMMON ISSUES TO AVOID
+====================
+
+- Surface acne: Use small epsilon when casting shadow rays
+- Overly dark images: Check ambient light is sufficient
+- Overly bright images: Clamp color values to 0-255
+- Wrong normals: Ensure normals point outward from surface
+- Integer overflow in Color: Use floats for computation, convert at end
+- Non-normalized vectors: Normalize L, N, V before dot products
+- Negative dot products: Clamp max(0, N·L) for diffuse/specular
+
+====================
+11. FORMULA REFERENCE
+====================
+
+Phong Shading Formula:
+   I = Ia*ka + Σ[Il * (kd*(N·L) + ks*(R·V)^n)]
+
+Where:
+   Ia = ambient light intensity
+   ka = ambient coefficient (0-1)
+   Il = light intensity
+   kd = diffuse coefficient (0-1)
+   N = surface normal (unit vector)
+   L = direction to light (unit vector)
+   ks = specular coefficient (0-1)
+   R = reflection of -L around N = 2*(N·L)*N - L
+   V = view direction (unit vector, toward camera)
+   n = shininess exponent (1-1000, typically 10-100)
+
+Shadow Ray:
+   shadow_origin = hit_point + epsilon * N
+   shadow_dir = normalize(light_pos - hit_point)
+   if any object intersects with t ∈ [epsilon, distance_to_light]:
+      light is blocked, skip this light's contribution
+
+====================
+12. EXAMPLE MATERIAL VALUES
+====================
+
+Matte Yellow (Sphere 1):
+   ambient: (0.2, 0.2, 0.0)
+   diffuse: (1.0, 1.0, 0.0)
+   specular: (0.2, 0.2, 0.2)
+   shininess: 10
+
+Shiny Gray (Sphere 2):
+   ambient: (0.2, 0.2, 0.2)
+   diffuse: (0.8, 0.8, 0.8)
+   specular: (0.9, 0.9, 0.9)
+   shininess: 50
+
+Matte Red (Floor):
+   ambient: (0.2, 0.0, 0.0)
+   diffuse: (1.0, 0.0, 0.0)
+   specular: (0.1, 0.1, 0.1)
+   shininess: 5
+
+Example Light:
+   position: (2.0, 3.0, -1.0) in world space
+   color: (1.0, 1.0, 1.0) white
+   intensity: 1.0
+
+Ambient Light:
+   color: (0.2, 0.2, 0.2)
+   intensity: 0.3
+
+====================
+END OF OUTLINE
+====================

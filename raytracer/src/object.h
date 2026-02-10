@@ -34,3 +34,5 @@ class Object {
 };
 
 #endif // RAYTRACER_OBJECT_H
+
+// need to add object list for k-d trees

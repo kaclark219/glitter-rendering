@@ -47,8 +47,8 @@ __global__ void renderKernel(Color* fb, int w, int h, float aspect, float scale,
     const Material* materials, int numMaterials,
     const LightData* lights, int numLights,
     Color ambientLight, Color background) {
-    int i = blockIdx.x * blockDim.x + threadIdx.x; // x
-    int j = blockIdx.y * blockDim.y + threadIdx.y; // y
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
+    int j = blockIdx.y * blockDim.y + threadIdx.y;
     if (i >= w || j >= h) return;
 
     float ndc_x = ((i + 0.5f) / (float)w) * 2.0f - 1.0f;
@@ -65,7 +65,6 @@ __global__ void renderKernel(Color* fb, int w, int h, float aspect, float scale,
     int hitType = -1; // 0 = sphere, 1 = triangle
     int hitIndex = -1;
 
-    // spheres
     for (int s = 0; s < nSpheres; ++s) {
         float t;
         if (intersectSphereGPU(spheres[s], ray, t) && t < nearest) {
@@ -74,7 +73,6 @@ __global__ void renderKernel(Color* fb, int w, int h, float aspect, float scale,
             hitIndex = s;
         }
     }
-    // triangles
     for (int tIdx = 0; tIdx < nTris; ++tIdx) {
         float t;
         if (intersectTriangleGPU(tris[tIdx], ray, t) && t < nearest) {
@@ -89,14 +87,12 @@ __global__ void renderKernel(Color* fb, int w, int h, float aspect, float scale,
         return;
     }
 
-    // compute hit point
     Point hit_point(
         ray_origin.getX() + nearest * ray_dir.getX(),
         ray_origin.getY() + nearest * ray_dir.getY(),
         ray_origin.getZ() + nearest * ray_dir.getZ()
     );
 
-    // compute normal & material index
     Vec3 normal;
     int matIndex = 0;
     if (hitType == 0) {
@@ -122,7 +118,6 @@ __global__ void renderKernel(Color* fb, int w, int h, float aspect, float scale,
     }
     normal.normalize();
 
-    // view direction (toward camera)
     Vec3 view_dir = ray_dir * -1.0f;
     view_dir.normalize();
 
@@ -130,7 +125,6 @@ __global__ void renderKernel(Color* fb, int w, int h, float aspect, float scale,
         matIndex = 0;
     }
 
-    // phong shading w/shadows
     Color result = materials[matIndex].getAmbient() * ambientLight;
     const float EPS = 1e-4f;
     for (int li = 0; li < numLights; ++li) {
@@ -141,7 +135,6 @@ __global__ void renderKernel(Color* fb, int w, int h, float aspect, float scale,
         float NdotL = normal.dot(L);
         if (NdotL < 0.0f) NdotL = 0.0f;
 
-        // shadow ray
         Point shadow_origin(
             hit_point.getX() + normal.getX() * EPS,
             hit_point.getY() + normal.getY() * EPS,
@@ -243,11 +236,17 @@ int renderCUDA() {
     hMats[2] = Material(Color(20, 0, 0), Color(150, 0, 0), Color(10, 10, 10), 5.0f, 0.0f);
 
     // lights
-    LightData hLights[1];
+    LightData hLights[2];
     hLights[0] = LightData(
         worldToCam(Point(0.262f, 2.8f, -1.2f), cam_pos, right, up, forward),
         Color(255, 255, 255),
         0.9f
+    );
+    // secondary light: yellow, between camera and spheres
+    hLights[1] = LightData(
+        worldToCam(Point(0.262f, 0.9f, -0.8f), cam_pos, right, up, forward),
+        Color(255, 220, 80),
+        1.0f
     );
     Color ambientLight(15, 15, 15);
 
@@ -289,12 +288,12 @@ int renderCUDA() {
     CUDA_CHECK(cudaMalloc(&dSpheres, 2 * sizeof(SphereGPU)));
     CUDA_CHECK(cudaMalloc(&dTris, 2 * sizeof(TriangleGPU)));
     CUDA_CHECK(cudaMalloc(&dMats, 3 * sizeof(Material)));
-    CUDA_CHECK(cudaMalloc(&dLights, 1 * sizeof(LightData)));
+    CUDA_CHECK(cudaMalloc(&dLights, 2 * sizeof(LightData)));
 
     CUDA_CHECK(cudaMemcpy(dSpheres, hSpheres, 2 * sizeof(SphereGPU), cudaMemcpyHostToDevice));
     CUDA_CHECK(cudaMemcpy(dTris, hTris, 2 * sizeof(TriangleGPU), cudaMemcpyHostToDevice));
     CUDA_CHECK(cudaMemcpy(dMats, hMats, 3 * sizeof(Material), cudaMemcpyHostToDevice));
-    CUDA_CHECK(cudaMemcpy(dLights, hLights, 1 * sizeof(LightData), cudaMemcpyHostToDevice));
+    CUDA_CHECK(cudaMemcpy(dLights, hLights, 2 * sizeof(LightData), cudaMemcpyHostToDevice));
 
     // launch kernel
     dim3 block(16, 16);
@@ -304,7 +303,7 @@ int renderCUDA() {
     renderKernel<<<grid, block>>>(dFB, W, H, aspect, scale,
         dSpheres, 2, dTris, 2,
         dMats, 3,
-        dLights, 1,
+        dLights, 2,
         ambientLight, bg);
 
     CUDA_CHECK(cudaGetLastError());

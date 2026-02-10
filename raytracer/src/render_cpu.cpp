@@ -125,55 +125,82 @@ int renderCPU() {
     float scale = std::tan(fov * 0.5f);
     Point ray_origin(0.0f, 0.0f, 0.0f);
 
+    const int SAMPLES_PER_PIXEL = 4; // 2x2 stratified
+    const int SAMPLES_AXIS = 2;
+
     for (int j = 0; j < H; ++j) {
         for (int i = 0; i < W; ++i) {
-            float ndc_x = ((i + 0.5f) / W) * 2.0f - 1.0f;
-            float ndc_y = 1.0f - ((j + 0.5f) / H) * 2.0f;
+            float accumR = 0.0f;
+            float accumG = 0.0f;
+            float accumB = 0.0f;
 
-            float px = ndc_x * aspect * scale;
-            float py = ndc_y * scale;
+            for (int sy = 0; sy < SAMPLES_AXIS; ++sy) {
+                for (int sx = 0; sx < SAMPLES_AXIS; ++sx) {
+                    float u = (i + (sx + 0.5f) / SAMPLES_AXIS) / (float)W;
+                    float v = (j + (sy + 0.5f) / SAMPLES_AXIS) / (float)H;
 
-            Vec3 ray_dir(px, py, 1.0f);
-            Ray ray(ray_origin, ray_dir);
+                    float ndc_x = u * 2.0f - 1.0f;
+                    float ndc_y = 1.0f - v * 2.0f;
 
-            float nearest = std::numeric_limits<float>::infinity();
-            Object* obj_hit = nullptr;
+                    float px = ndc_x * aspect * scale;
+                    float py = ndc_y * scale;
 
-            for (const auto& obj : scene_cam) {
-                float t;
-                if (obj->intersect(ray, t) && t < nearest) {
-                    nearest = t;
-                    obj_hit = obj.get();
+                    Vec3 ray_dir(px, py, 1.0f);
+                    Ray ray(ray_origin, ray_dir);
+
+                    float nearest = std::numeric_limits<float>::infinity();
+                    Object* obj_hit = nullptr;
+
+                    for (const auto& obj : scene_cam) {
+                        float t;
+                        if (obj->intersect(ray, t) && t < nearest) {
+                            nearest = t;
+                            obj_hit = obj.get();
+                        }
+                    }
+
+                    Color sampleColor = Color(135, 206, 235);
+                    if (obj_hit) {
+                        // compute hit point and normal
+                        Point hit_point(
+                            ray_origin.getX() + nearest * ray_dir.getX(),
+                            ray_origin.getY() + nearest * ray_dir.getY(),
+                            ray_origin.getZ() + nearest * ray_dir.getZ()
+                        );
+                        Vec3 normal = obj_hit->normal(hit_point);
+                        normal.normalize();
+                        
+                        // view direction (from hit point toward camera)
+                        Vec3 view_dir = ray_dir * -1.0f;
+                        view_dir.normalize();
+                        
+                        // create intersection data
+                        IntersectData data;
+                        data.hit_point = hit_point;
+                        data.normal = normal;
+                        data.incoming = ray_dir;
+                        data.t = nearest;
+                        data.object = obj_hit;
+                        data.hit = true;
+                        
+                        // compute illumination using phong model (w/shadows)
+                        sampleColor = phong.illuminate(data, world.getLights(), scene_cam, obj_hit->getMaterial(), view_dir);
+                    }
+
+                    accumR += sampleColor.r;
+                    accumG += sampleColor.g;
+                    accumB += sampleColor.b;
                 }
             }
 
-            if (obj_hit) {
-                // compute hit point and normal
-                Point hit_point(
-                    ray_origin.getX() + nearest * ray_dir.getX(),
-                    ray_origin.getY() + nearest * ray_dir.getY(),
-                    ray_origin.getZ() + nearest * ray_dir.getZ()
-                );
-                Vec3 normal = obj_hit->normal(hit_point);
-                normal.normalize();
-                
-                // view direction (from hit point toward camera)
-                Vec3 view_dir = ray_dir * -1.0f;
-                view_dir.normalize();
-                
-                // create intersection data
-                IntersectData data;
-                data.hit_point = hit_point;
-                data.normal = normal;
-                data.incoming = ray_dir;
-                data.t = nearest;
-                data.object = obj_hit;
-                data.hit = true;
-                
-                // compute illumination using phong model (w/shadows)
-                Color finalColor = phong.illuminate(data, world.getLights(), scene_cam, obj_hit->getMaterial(), view_dir);
-                img.setPixel(i, j, finalColor);
-            }
+            float invSamples = 1.0f / (float)SAMPLES_PER_PIXEL;
+            Color finalColor(
+                (int)(accumR * invSamples),
+                (int)(accumG * invSamples),
+                (int)(accumB * invSamples)
+            );
+            finalColor.clamp();
+            img.setPixel(i, j, finalColor);
         }
     }
 

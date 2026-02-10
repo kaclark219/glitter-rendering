@@ -1,8 +1,16 @@
 #include <cuda_runtime.h>
 #include "image/image.h"
 
+#include "components/material.h"
+#include "components/illumination.h"
 #include "objects/sphere.h"
 #include "objects/triangle.h"
+#include "components/color.h"
+#include "components/point.h"
+#include "components/vec3.h"
+#include "components/ray.h"
+#include "components/light.h"
+#include "components/intersect_data.h"
 
 #include <cmath>
 #include <limits>
@@ -33,7 +41,12 @@ static inline Point worldToCam(const Point& P, const Point& cam_pos, const Vec3&
 }
 
 // one thread per pixel
-__global__ void renderKernel(Color* fb, int w, int h, float aspect, float scale, const SphereGPU* spheres, int nSpheres, const TriangleGPU* tris, int nTris, Color background) {
+__global__ void renderKernel(Color* fb, int w, int h, float aspect, float scale,
+    const SphereGPU* spheres, int nSpheres,
+    const TriangleGPU* tris, int nTris,
+    const Material* materials, int numMaterials,
+    const LightData* lights, int numLights,
+    Color ambientLight, Color background) {
     int i = blockIdx.x * blockDim.x + threadIdx.x; // x
     int j = blockIdx.y * blockDim.y + threadIdx.y; // y
     if (i >= w || j >= h) return;
@@ -49,16 +62,16 @@ __global__ void renderKernel(Color* fb, int w, int h, float aspect, float scale,
     Ray ray(ray_origin, ray_dir);
 
     float nearest = 1e30f;
-    bool hit = false;
-    Color hitCol = background;
+    int hitType = -1; // 0 = sphere, 1 = triangle
+    int hitIndex = -1;
 
     // spheres
     for (int s = 0; s < nSpheres; ++s) {
         float t;
         if (intersectSphereGPU(spheres[s], ray, t) && t < nearest) {
             nearest = t;
-            hit = true;
-            hitCol = spheres[s].color;
+            hitType = 0;
+            hitIndex = s;
         }
     }
     // triangles
@@ -66,12 +79,109 @@ __global__ void renderKernel(Color* fb, int w, int h, float aspect, float scale,
         float t;
         if (intersectTriangleGPU(tris[tIdx], ray, t) && t < nearest) {
             nearest = t;
-            hit = true;
-            hitCol = tris[tIdx].color;
+            hitType = 1;
+            hitIndex = tIdx;
         }
     }
 
-    fb[(size_t)j * (size_t)w + (size_t)i] = hit ? hitCol : background;
+    if (hitType == -1) {
+        fb[(size_t)j * (size_t)w + (size_t)i] = background;
+        return;
+    }
+
+    // compute hit point
+    Point hit_point(
+        ray_origin.getX() + nearest * ray_dir.getX(),
+        ray_origin.getY() + nearest * ray_dir.getY(),
+        ray_origin.getZ() + nearest * ray_dir.getZ()
+    );
+
+    // compute normal & material index
+    Vec3 normal;
+    int matIndex = 0;
+    if (hitType == 0) {
+        normal = Vec3(
+            hit_point.getX() - spheres[hitIndex].center.getX(),
+            hit_point.getY() - spheres[hitIndex].center.getY(),
+            hit_point.getZ() - spheres[hitIndex].center.getZ()
+        );
+        matIndex = spheres[hitIndex].materialIndex;
+    } else {
+        Vec3 edge1 = Vec3(
+            tris[hitIndex].points[1].getX() - tris[hitIndex].points[0].getX(),
+            tris[hitIndex].points[1].getY() - tris[hitIndex].points[0].getY(),
+            tris[hitIndex].points[1].getZ() - tris[hitIndex].points[0].getZ()
+        );
+        Vec3 edge2 = Vec3(
+            tris[hitIndex].points[2].getX() - tris[hitIndex].points[0].getX(),
+            tris[hitIndex].points[2].getY() - tris[hitIndex].points[0].getY(),
+            tris[hitIndex].points[2].getZ() - tris[hitIndex].points[0].getZ()
+        );
+        normal = edge1.cross(edge2);
+        matIndex = tris[hitIndex].materialIndex;
+    }
+    normal.normalize();
+
+    // view direction (toward camera)
+    Vec3 view_dir = ray_dir * -1.0f;
+    view_dir.normalize();
+
+    if (matIndex < 0 || matIndex >= numMaterials) {
+        matIndex = 0;
+    }
+
+    // phong shading w/shadows
+    Color result = materials[matIndex].getAmbient() * ambientLight;
+    const float EPS = 1e-4f;
+    for (int li = 0; li < numLights; ++li) {
+        Vec3 L = lights[li].position - hit_point;
+        float lightDist = L.length();
+        L.normalize();
+
+        float NdotL = normal.dot(L);
+        if (NdotL < 0.0f) NdotL = 0.0f;
+
+        // shadow ray
+        Point shadow_origin(
+            hit_point.getX() + normal.getX() * EPS,
+            hit_point.getY() + normal.getY() * EPS,
+            hit_point.getZ() + normal.getZ() * EPS
+        );
+        Ray shadow_ray(shadow_origin, L);
+        bool inShadow = false;
+        for (int s = 0; s < nSpheres; ++s) {
+            float tShadow;
+            if (intersectSphereGPU(spheres[s], shadow_ray, tShadow) && tShadow > EPS && tShadow < lightDist) {
+                inShadow = true;
+                break;
+            }
+        }
+        if (!inShadow) {
+            for (int tIdx = 0; tIdx < nTris; ++tIdx) {
+                float tShadow;
+                if (intersectTriangleGPU(tris[tIdx], shadow_ray, tShadow) && tShadow > EPS && tShadow < lightDist) {
+                    inShadow = true;
+                    break;
+                }
+            }
+        }
+        if (inShadow) {
+            continue;
+        }
+
+        Vec3 R = (normal * (2.0f * NdotL)) - L;
+        R.normalize();
+        float RdotV = R.dot(view_dir);
+        if (RdotV < 0.0f) RdotV = 0.0f;
+        float specularFactor = (RdotV > 0.0f) ? powf(RdotV, materials[matIndex].getShininess()) : 0.0f;
+
+        Color lightColor = lights[li].color * lights[li].intensity;
+        result = result + (materials[matIndex].getDiffuse() * lightColor * NdotL);
+        result = result + (materials[matIndex].getSpecular() * lightColor * specularFactor);
+    }
+
+    result.clamp();
+    fb[(size_t)j * (size_t)w + (size_t)i] = result;
 }
 
 // main render function
@@ -126,51 +236,76 @@ int renderCUDA() {
     Point f01_cam = worldToCam(f01_world, cam_pos, right, up, forward);
     Point f11_cam = worldToCam(f11_world, cam_pos, right, up, forward);
 
+    // materials
+    Material hMats[3];
+    hMats[0] = Material(Color(20, 20, 0), Color(150, 150, 0), Color(30, 30, 30), 20.0f, 0.0f);
+    hMats[1] = Material(Color(40, 40, 40), Color(190, 190, 190), Color(130, 130, 130), 50.0f, 0.0f);
+    hMats[2] = Material(Color(20, 0, 0), Color(150, 0, 0), Color(10, 10, 10), 5.0f, 0.0f);
+
+    // lights
+    LightData hLights[1];
+    hLights[0] = LightData(
+        worldToCam(Point(0.262f, 2.8f, -1.2f), cam_pos, right, up, forward),
+        Color(255, 255, 255),
+        0.9f
+    );
+    Color ambientLight(15, 15, 15);
+
     // host gpu-scene arrays
     SphereGPU hSpheres[2];
     hSpheres[0].center = s1c_cam;
     hSpheres[0].radius = s1r;
-    hSpheres[0].materialIndex = -1;
-    hSpheres[0].color = Color(255, 255, 0); // yellow sphere
+    hSpheres[0].materialIndex = 0;
+    hSpheres[0].color = Color(255, 255, 0); // unused in shading
 
     hSpheres[1].center = s2c_cam;
     hSpheres[1].radius = s2r;
-    hSpheres[1].materialIndex = -1;
-    hSpheres[1].color = Color(200, 200, 200); // grey sphere
+    hSpheres[1].materialIndex = 1;
+    hSpheres[1].color = Color(200, 200, 200); // unused in shading
 
     TriangleGPU hTris[2];
     hTris[0].points[0] = f00_cam;
     hTris[0].points[1] = f10_cam;
     hTris[0].points[2] = f11_cam;
-    hTris[0].materialIndex = -1;
-    hTris[0].color = Color(255, 0, 0); // red
+    hTris[0].materialIndex = 2;
+    hTris[0].color = Color(255, 0, 0); // unused in shading
 
     hTris[1].points[0] = f00_cam;
     hTris[1].points[1] = f11_cam;
     hTris[1].points[2] = f01_cam;
-    hTris[1].materialIndex = -1;
-    hTris[1].color = Color(255, 0, 0); // red
+    hTris[1].materialIndex = 2;
+    hTris[1].color = Color(255, 0, 0); // unused in shading
 
     // allocate device memory
     Color* dFB = nullptr;
     SphereGPU* dSpheres = nullptr;
     TriangleGPU* dTris = nullptr;
+    Material* dMats = nullptr;
+    LightData* dLights = nullptr;
 
     size_t fbBytes = (size_t)W * (size_t)H * sizeof(Color);
 
     CUDA_CHECK(cudaMalloc(&dFB, fbBytes));
     CUDA_CHECK(cudaMalloc(&dSpheres, 2 * sizeof(SphereGPU)));
     CUDA_CHECK(cudaMalloc(&dTris, 2 * sizeof(TriangleGPU)));
+    CUDA_CHECK(cudaMalloc(&dMats, 3 * sizeof(Material)));
+    CUDA_CHECK(cudaMalloc(&dLights, 1 * sizeof(LightData)));
 
     CUDA_CHECK(cudaMemcpy(dSpheres, hSpheres, 2 * sizeof(SphereGPU), cudaMemcpyHostToDevice));
     CUDA_CHECK(cudaMemcpy(dTris, hTris, 2 * sizeof(TriangleGPU), cudaMemcpyHostToDevice));
+    CUDA_CHECK(cudaMemcpy(dMats, hMats, 3 * sizeof(Material), cudaMemcpyHostToDevice));
+    CUDA_CHECK(cudaMemcpy(dLights, hLights, 1 * sizeof(LightData), cudaMemcpyHostToDevice));
 
     // launch kernel
     dim3 block(16, 16);
     dim3 grid((W + block.x - 1) / block.x, (H + block.y - 1) / block.y);
 
     Color bg(135, 206, 235); // sky blue background
-    renderKernel<<<grid, block>>>(dFB, W, H, aspect, scale, dSpheres, 2, dTris, 2, bg);
+    renderKernel<<<grid, block>>>(dFB, W, H, aspect, scale,
+        dSpheres, 2, dTris, 2,
+        dMats, 3,
+        dLights, 1,
+        ambientLight, bg);
 
     CUDA_CHECK(cudaGetLastError());
     CUDA_CHECK(cudaDeviceSynchronize());
@@ -183,6 +318,8 @@ int renderCUDA() {
     CUDA_CHECK(cudaFree(dFB));
     CUDA_CHECK(cudaFree(dSpheres));
     CUDA_CHECK(cudaFree(dTris));
+    CUDA_CHECK(cudaFree(dMats));
+    CUDA_CHECK(cudaFree(dLights));
 
     // write to image class
     Image img(W, H, bg);

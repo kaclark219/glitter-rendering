@@ -20,8 +20,8 @@ class Triangle : public Object {
         // default constructor
         Triangle() : Object(), points{Point(), Point(), Point()} {}
 
-        // construct from three points with optional material index
-        Triangle(const Point &p0, const Point &p1, const Point &p2, int mat = -1) : Object(mat) {
+        // construct from three points
+        Triangle(const Point &p0, const Point &p1, const Point &p2) : Object() {
             points[0] = p0;
             points[1] = p1;
             points[2] = p2;

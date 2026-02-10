@@ -32,11 +32,20 @@ class Color {
             return Color(static_cast<int>(r + other.r), static_cast<int>(g + other.g), static_cast<int>(b + other.b));
         }
 
-        // clamp method to ensure color values are within 0-1
+        // clamp method to ensure color values are within 0-255
         CUDA_CALLABLE void clamp() {
-            r = (r > 1.0f) ? 1.0f : (r < 0.0f) ? 0.0f : r;
-            g = (g > 1.0f) ? 1.0f : (g < 0.0f) ? 0.0f : g;
-            b = (b > 1.0f) ? 1.0f : (b < 0.0f) ? 0.0f : b;
+            r = (r > 255.0f) ? 255.0f : (r < 0.0f) ? 0.0f : r;
+            g = (g > 255.0f) ? 255.0f : (g < 0.0f) ? 0.0f : g;
+            b = (b > 255.0f) ? 255.0f : (b < 0.0f) ? 0.0f : b;
+        }
+
+        // multiplication operator for component-wise color multiplication
+        CUDA_CALLABLE Color operator*(const Color &other) const {
+            // Normalize to 0-1, multiply, then scale back to 0-255
+            float nr = (r / 255.0f) * (other.r / 255.0f) * 255.0f;
+            float ng = (g / 255.0f) * (other.g / 255.0f) * 255.0f;
+            float nb = (b / 255.0f) * (other.b / 255.0f) * 255.0f;
+            return Color(static_cast<int>(nr), static_cast<int>(ng), static_cast<int>(nb));
         }
 };
 

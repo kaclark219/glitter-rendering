@@ -23,9 +23,9 @@ class Sphere : public Object {
         // default constructor
         Sphere() : Object(), center(Point()), radius(1.0f) {}
 
-        // constructor with center, radius, optional material index and color
-        Sphere(const Point& c, float r, int mat = -1, const Color &col = Color())
-            : Object(mat, col), center(c), radius(r) {}
+        // constructor with center and radius
+        Sphere(const Point& c, float r)
+            : Object(), center(c), radius(r) {}
 
         // copy constructor
         Sphere(const Sphere &s) : Object(s), center(s.center), radius(s.radius) {}

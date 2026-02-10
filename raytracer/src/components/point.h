@@ -14,6 +14,9 @@
 #include "mat4.h"
 #endif
 
+// forward declaration for Vec3 to avoid circular dependency
+class Vec3;
+
 class Point {
     private:
         float x, y, z;
@@ -51,6 +54,9 @@ class Point {
         #endif
         }
 
+        // subtraction operator to get direction vector from two points
+        CUDA_CALLABLE Vec3 operator-(const Point& other) const;
+
 #ifndef __CUDACC__
         // transform point by a 4x4 matrix
         Point transform(const Mat4 &m) const {
@@ -61,6 +67,22 @@ class Point {
         }
 #endif
 };
+
+#undef CUDA_CALLABLE
+
+// include Vec3 after Point definition to avoid circular dependency
+#include "vec3.h"
+
+#ifdef __CUDACC__
+    #define CUDA_CALLABLE __host__ __device__
+#else
+    #define CUDA_CALLABLE
+#endif
+
+// implement Point subtraction operator
+inline CUDA_CALLABLE Vec3 Point::operator-(const Point& other) const {
+    return Vec3(x - other.x, y - other.y, z - other.z);
+}
 
 #undef CUDA_CALLABLE
 

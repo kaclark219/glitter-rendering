@@ -5,22 +5,23 @@
 #include "components/vec3.h"
 #include "components/color.h"
 #include "components/ray.h"
+#include "components/material.h"
 
 class Object {
     protected:
-        int materialIndex;
+        Material mat;
         Color color;
     public:
-        Object() : materialIndex(-1), color(Color()) {}
-        Object(int matIndex, const Color &col = Color()) : materialIndex(matIndex), color(col) {}
+        Object() : mat(Material()), color(Color()) {}
+        Object(const Material &material, const Color &col = Color()) : mat(material), color(col) {}
         virtual ~Object() = default;
 
         // getters
-        int getMaterialIndex() const { return materialIndex; }
+        const Material& getMaterial() const { return mat; }
         const Color& getColor() const { return color; }
 
         // setters
-        void setMaterialIndex(int matIndex) { materialIndex = matIndex; }
+        void setMaterial(const Material &material) { mat = material; }
         void setColor(const Color &col) { color = col; }
 
         // intersect ray (origin as Point, direction as Vec3), returns hit distance in t

@@ -1,0 +1,20 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Build & Run raytracer_cpu",
+			"type": "shell",
+			"command": "make",
+			"args": [
+				"-C",
+				"/home/mygblvsh/Documents/Programming/CSCI.711.01/ray-tracer/raytracer/build",
+				"raytracer_cpu",
+				"&&",
+				"/home/mygblvsh/Documents/Programming/CSCI.711.01/ray-tracer/raytracer/build/raytracer_cpu"
+			],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		}
+	]
+}

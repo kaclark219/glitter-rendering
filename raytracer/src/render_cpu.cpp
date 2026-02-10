@@ -3,6 +3,11 @@
 #include "camera.h"
 #include "components/point.h"
 #include "components/ray.h"
+#include "components/material.h"
+#include "components/light.h"
+#include "components/illumination.h"
+#include "components/intersect_data.h"
+#include "world.h"
 #include "object.h"
 #include "objects/sphere.h"
 #include "objects/triangle.h"
@@ -48,6 +53,25 @@ int renderCPU() {
     Vec3 up = right.cross(forward);
     up.normalize();
 
+    // create materials
+    Material matYellow(Color(20, 20, 0), Color(150, 150, 0), Color(30, 30, 30), 20.0f, 0.0f); // matte yellow sphere
+    Material matGrey(Color(40, 40, 40), Color(190, 190, 190), Color(130, 130, 130), 50.0f, 0.0f); // shiny grey sphere
+    Material matRed(Color(20, 0, 0), Color(150, 0, 0), Color(10, 10, 10), 5.0f, 0.0f); // matte red floor
+
+    // create world and add lights
+    World world;
+    world.setAmbientLight(Color(15, 15, 15)); // ambient light
+    
+    // light modified from specifications.txt to be more visible in render
+    world.addLight(make_unique<PointLight>(
+        worldToCam(Point(0.262f, 2.8f, -1.2f), cam_pos, right, up, forward), // light position in camera space
+        Color(255, 255, 255), // white light
+        0.9f // intensity
+    ));
+
+    // create illumination model
+    PhongIllumination phong(world.getAmbientLight());
+
     // build scene in world coords
     // sphere #1
     Point s1c_world(0.498855f, 0.393785f, -1.932619f);
@@ -72,10 +96,14 @@ int renderCPU() {
 
     // transform centers to camera space
     Point s1c_cam = worldToCam(s1c_world, cam_pos, right, up, forward);
-    scene_cam.push_back(make_unique<Sphere>(s1c_cam, s1r, -1, Color(255, 255, 0))); // yellow sphere
+    auto sphere1 = make_unique<Sphere>(s1c_cam, s1r);
+    sphere1->setMaterial(matYellow);
+    scene_cam.push_back(std::move(sphere1));
 
     Point s2c_cam = worldToCam(s2c_world, cam_pos, right, up, forward);
-    scene_cam.push_back(make_unique<Sphere>(s2c_cam, s2r, -1, Color(200, 200, 200))); // grey sphere
+    auto sphere2 = make_unique<Sphere>(s2c_cam, s2r);
+    sphere2->setMaterial(matGrey);
+    scene_cam.push_back(std::move(sphere2));
 
     // transform vertices to camera space
     Point f00_cam = worldToCam(f00_world, cam_pos, right, up, forward);
@@ -83,11 +111,11 @@ int renderCPU() {
     Point f01_cam = worldToCam(f01_world, cam_pos, right, up, forward);
     Point f11_cam = worldToCam(f11_world, cam_pos, right, up, forward);
 
-    auto t1 = make_unique<Triangle>(f00_cam, f10_cam, f11_cam, -1);
-    t1->setColor(Color(255, 0, 0)); // red
+    auto t1 = make_unique<Triangle>(f00_cam, f10_cam, f11_cam);
+    t1->setMaterial(matRed);
     scene_cam.push_back(std::move(t1));
-    auto t2 = make_unique<Triangle>(f00_cam, f11_cam, f01_cam, -1);
-    t2->setColor(Color(255, 0, 0)); // red
+    auto t2 = make_unique<Triangle>(f00_cam, f11_cam, f01_cam);
+    t2->setMaterial(matRed);
     scene_cam.push_back(std::move(t2));
 
     // prep img with sky blue background
@@ -119,8 +147,33 @@ int renderCPU() {
                 }
             }
 
-            if (obj_hit)
-                img.setPixel(i, j, obj_hit->getColor());
+            if (obj_hit) {
+                // compute hit point and normal
+                Point hit_point(
+                    ray_origin.getX() + nearest * ray_dir.getX(),
+                    ray_origin.getY() + nearest * ray_dir.getY(),
+                    ray_origin.getZ() + nearest * ray_dir.getZ()
+                );
+                Vec3 normal = obj_hit->normal(hit_point);
+                normal.normalize();
+                
+                // view direction (from hit point toward camera)
+                Vec3 view_dir = ray_dir * -1.0f;
+                view_dir.normalize();
+                
+                // create intersection data
+                IntersectData data;
+                data.hit_point = hit_point;
+                data.normal = normal;
+                data.incoming = ray_dir;
+                data.t = nearest;
+                data.object = obj_hit;
+                data.hit = true;
+                
+                // compute illumination using phong model (w/shadows)
+                Color finalColor = phong.illuminate(data, world.getLights(), scene_cam, obj_hit->getMaterial(), view_dir);
+                img.setPixel(i, j, finalColor);
+            }
         }
     }
 

@@ -6,6 +6,7 @@
 #include "material.h"
 #include "object.h"
 #include "../textures/texture.h"
+#include "../textures/glitter.h"
 #include <vector>
 #include <memory>
 #include <cmath>
@@ -42,10 +43,20 @@ class PhongIllumination : public Illumination {
             
             // sample texture if available & get diffuse color
             Color diffuseColor = material.getDiffuse();
+            Vec3 effectiveNormal = data.normal; // may be perturbed by bump mapping
+            
             if (texture != nullptr) {
                 Color textureSample = texture->sample(data.hit_point, Point(0, 0, 0), data.normal);
                 // use texture color directly
                 diffuseColor = textureSample;
+                
+                // Try to apply bump mapping if texture is a GlitterTexture
+                const GlitterTexture* glitter = dynamic_cast<const GlitterTexture*>(texture);
+                if (glitter != nullptr) {
+                    // Apply subtle bump mapping to preserve brightness
+                    effectiveNormal = glitter->bump_normal(data.hit_point, Point(0, 0, 0), data.normal, 0.15f);
+                }
+                // For all other texture types, effectiveNormal remains the geometric normal
             }
             
             Color result = material.getAmbient() * ambientLight;
@@ -54,7 +65,7 @@ class PhongIllumination : public Illumination {
                 Vec3 L = light->getPosition() - data.hit_point;
                 float lightDist = L.length();
                 L.normalize();
-                Vec3 N = data.normal;
+                Vec3 N = effectiveNormal;
                 float NdotL = std::max(N.dot(L), 0.0f);
 
                 // shadow ray: check if light is blocked
@@ -151,7 +162,7 @@ CUDA_CALLABLE inline Color computePhongIlluminationWithTexture(
     Color sampledTexture
 ) {
     // sample texture and modulate diffuse color
-    // For procedural textures, use the sampled color directly
+    // for procedural textures, use the sampled color directly
     Color diffuseColor = sampledTexture;
     
     Color result = material.getAmbient() * ambientLight;

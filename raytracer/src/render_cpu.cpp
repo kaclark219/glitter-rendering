@@ -13,6 +13,7 @@
 #include "objects/triangle.h"
 #include "textures/checkerboard.h"
 #include "textures/noise.h"
+#include "textures/glitter.h"
 
 // each object is heap allocated & stored in a vector
 #include <memory>
@@ -58,7 +59,7 @@ int renderCPU() {
     // create materials
     Material matYellow(Color(20, 20, 0), Color(150, 150, 0), Color(30, 30, 30), 20.0f, 0.0f); // matte yellow sphere
     Material matGrey(Color(40, 40, 40), Color(190, 190, 190), Color(130, 130, 130), 50.0f, 0.0f); // shiny grey sphere
-    Material matRed(Color(20, 0, 0), Color(150, 0, 0), Color(10, 10, 10), 5.0f, 0.0f); // matte red floor
+    Material matRed(Color(20, 0, 0), Color(150, 0, 0), Color(255, 255, 255), 80.0f, 0.0f); // glittery floor with bright specular highlights
 
     // create world and add lights
     World world;
@@ -71,14 +72,24 @@ int renderCPU() {
         0.9f // intensity
     ));
 
+    // second light - bright pink between camera and spheres
+    world.addLight(make_unique<PointLight>(
+        worldToCam(Point(0.05f, 0.6f, -0.85f), cam_pos, right, up, forward), // light position in camera space
+        Color(255, 150, 255), // bright purple/white light
+        0.8f // intensity
+    ));
+
     // create illumination model
     PhongIllumination phong(world.getAmbientLight());
 
     // create checkerboard texture for floor
-    CheckerboardTexture checkerboard(Color(255, 0, 0), Color(255, 255, 0), 1.5f);
+    // CheckerboardTexture checkerboard(Color(255, 0, 0), Color(255, 255, 0), 1.5f);
 
     // create perlin noise texture for floor
     // NoiseTexture noiseTexture(2.0f, Color(0, 0, 0), Color(255, 255, 255));
+
+    // create glitter texture for floor
+    GlitterTexture glitter(Color(200, 200, 200), 96.0f);
 
     // build scene in world coords
     // sphere #1
@@ -121,11 +132,11 @@ int renderCPU() {
 
     auto t1 = make_unique<Triangle>(f00_cam, f10_cam, f11_cam);
     t1->setMaterial(matRed);
-    t1->setTexture(&checkerboard);
+    t1->setTexture(&glitter);
     scene_cam.push_back(std::move(t1));
     auto t2 = make_unique<Triangle>(f00_cam, f11_cam, f01_cam);
     t2->setMaterial(matRed);
-    t2->setTexture(&checkerboard);
+    t2->setTexture(&glitter);
     scene_cam.push_back(std::move(t2));
 
     // prep img with sky blue background

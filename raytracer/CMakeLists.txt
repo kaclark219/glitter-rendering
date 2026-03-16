@@ -12,6 +12,13 @@ add_executable(raytracer_cpu
 )
 target_include_directories(raytracer_cpu PRIVATE src)
 
+# --- CPU Visualization executable ---
+add_executable(raytracer_visualization
+    src/render_cpu_visualization.cpp
+    src/image/image_ppm.cpp
+)
+target_include_directories(raytracer_visualization PRIVATE src)
+
 # --- CUDA executable ---
 # Expect these files to exist:
 #   src/main_cuda.cu        (calls renderCUDA())
@@ -38,9 +45,11 @@ endif()
 
 if (MSVC)
     target_compile_options(raytracer_cpu PRIVATE /W4)
+    target_compile_options(raytracer_visualization PRIVATE /W4)
     target_compile_options(raytracer_cuda PRIVATE /W4)
 else()
     target_compile_options(raytracer_cpu PRIVATE -Wall -Wextra -Wpedantic)
+    target_compile_options(raytracer_visualization PRIVATE -Wall -Wextra -Wpedantic)
     target_compile_options(raytracer_cuda PRIVATE -Wall -Wextra -Wpedantic)
 endif()
 
@@ -49,5 +58,6 @@ endif()
 #   cmake --build build -j
 #
 # run:
-#   ./build/raytracer_cpu
+#   ./build/raytracer_cpu              (normal rendering)
+#   ./build/raytracer_visualization    (glitter visualization - change VIS_MODE in render_cpu_visualization.cpp)
 #   ./build/raytracer_cuda

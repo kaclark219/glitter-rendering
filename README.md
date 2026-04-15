@@ -7,6 +7,7 @@ A procedural glitter material built in C++ for a custom ray tracing system, with
 ### Final Render
 
 ![Final glitter render](docs/images/top-img.png)
+
 Scene includes two cool-toned glitter primitives under warm lighting for a gold glitter effect.
 
 ### Debug Views
@@ -76,10 +77,11 @@ This is what helps the flakes feel embedded in the surface of the objects.
 
 ### 3. Showcase Scenes
 
-There are two CPU-side scene setups:
+There are two CPU-side scene setups and one GPU-side setup:
 
 - `src/render_cpu.cpp`: the main render layout, using a Cornell-box-style setup with glitter-coated objects
 - `src/render_cpu_visualization.cpp`: a dedicated scene for debugging & presenting the texture behavior across several objects, scales, & visualization modes
+- `src/render_cuda.cu`: a more traditional intepretation of the Cornell-box setup with glitter-coated objects
 
 ## Running The Project
 
@@ -100,6 +102,11 @@ Run the visualization renderer:
 
 ```bash
 ./build/raytracer_visualization
+```
+
+Run the GPU-parallelized render:
+```bash
+./build/raytracer_cuda
 ```
 
 Outputs are written to:

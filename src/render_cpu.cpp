@@ -204,11 +204,15 @@ int renderCPU() {
     Material matCeiling = ceilingMatte();
     Material matRed = tintedMatte(225, 85, 75);
     Material matGreen = tintedMatte(100, 225, 115);
-    const Material matObject = tintedMatte(215, 215, 215);
-    Material matLight(Color(255, 255, 255), Color(255, 255, 255), Color(0, 0, 0), 1.0f, 0.0f);
+    const Material matObject = tintedMatte(188, 202, 220);
+    const Color warmAmberLight(255, 188, 112);
+    const Color warmGoldLight(255, 156, 72);
+    const Color warmFillLight(255, 198, 128);
+    Material matLight = matCeiling;
     Material matGlitterObject = matObject;
-    matGlitterObject.setSpecular(Color(225, 225, 225));
-    matGlitterObject.setShininess(72.0f);
+    matGlitterObject.setSpecular(Color(196, 150, 92));
+    matGlitterObject.setShininess(34.0f);
+    matGlitterObject.setAmbient(Color(56, 64, 76));
 
     matFloor.setAmbient(Color(70, 70, 70));
     matWhite.setAmbient(Color(125, 125, 125));
@@ -218,44 +222,28 @@ int renderCPU() {
 
     // cornell box scene setup
     World world;
-    world.setAmbientLight(Color(75, 75, 75));
+    world.setAmbientLight(Color(38, 24, 14));
     world.addLight(make_unique<PointLight>(
-        worldToCam(Point(240.0f, 545.0f, 245.0f), cam_pos, right, up, forward),
-        Color(255, 255, 255),
-        1.7f
+        worldToCam(Point(110.0f, 255.0f, 170.0f), cam_pos, right, up, forward),
+        warmAmberLight,
+        1.05f
     ));
     world.addLight(make_unique<PointLight>(
-        worldToCam(Point(316.0f, 545.0f, 245.0f), cam_pos, right, up, forward),
-        Color(255, 255, 255),
-        1.7f
+        worldToCam(Point(455.0f, 240.0f, 345.0f), cam_pos, right, up, forward),
+        warmGoldLight,
+        0.98f
     ));
     world.addLight(make_unique<PointLight>(
-        worldToCam(Point(240.0f, 545.0f, 314.0f), cam_pos, right, up, forward),
-        Color(255, 255, 255),
-        1.7f
-    ));
-    world.addLight(make_unique<PointLight>(
-        worldToCam(Point(316.0f, 545.0f, 314.0f), cam_pos, right, up, forward),
-        Color(255, 255, 255),
-        1.7f
-    ));
-    world.addLight(make_unique<PointLight>(
-        worldToCam(Point(278.0f, 430.0f, -650.0f), cam_pos, right, up, forward),
-        Color(255, 255, 255),
-        0.20f
-    ));
-    world.addLight(make_unique<PointLight>(
-        worldToCam(Point(278.0f, 360.0f, -500.0f), cam_pos, right, up, forward),
-        Color(255, 255, 255),
-        0.04f
+        worldToCam(Point(420.0f, 115.0f, -120.0f), cam_pos, right, up, forward),
+        warmFillLight,
+        0.42f
     ));
 
     // create illumination model
     PhongIllumination phong(world.getAmbientLight());
 
-    GlitterTexture glitter(Color(218, 223, 230), 22.0f);
-    // tint glitter purple
-    // glitter.setTintColor(Color(200, 180, 255));
+    GlitterTexture glitter(Color(198, 214, 235), 22.0f);
+    glitter.setTintColor(Color(210, 226, 245));
 
     // build scene in camera space .. converted from world space using camera basis
     vector<unique_ptr<Object>> scene_cam;

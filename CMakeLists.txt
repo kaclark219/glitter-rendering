@@ -53,11 +53,12 @@ else()
     target_compile_options(raytracer_cuda PRIVATE -Wall -Wextra -Wpedantic)
 endif()
 
-# to build:
+# build from a clean directory:
 #   cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 #   cmake --build build -j
 #
 # run:
-#   ./build/raytracer_cpu              (normal rendering)
-#   ./build/raytracer_visualization    (glitter visualization - change VIS_MODE in render_cpu_visualization.cpp)
-#   ./build/raytracer_cuda
+#   ./build/raytracer_cpu              (Cornell box glitter render)
+#   ./build/raytracer_visualization    (glitter debug views: normal, mask, height, rotation)
+#   ./build/raytracer_cuda             (CUDA renderer)
+#

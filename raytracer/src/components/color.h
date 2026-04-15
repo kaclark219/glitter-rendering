@@ -18,18 +18,22 @@ class Color {
         CUDA_CALLABLE Color(int red, int green, int blue)
             : r(static_cast<float>(red)), g(static_cast<float>(green)), b(static_cast<float>(blue)) {}
 
+        // floating-point constructor for shading math
+        CUDA_CALLABLE Color(float red, float green, float blue)
+            : r(red), g(green), b(blue) {}
+
         // use default copy constructor/assignment
         CUDA_CALLABLE Color(const Color &c) = default;
         CUDA_CALLABLE Color& operator=(const Color &c) = default;
 
         // multiplication operator for scaling color by a float
         CUDA_CALLABLE Color operator*(float scalar) const {
-            return Color(static_cast<int>(r * scalar), static_cast<int>(g * scalar), static_cast<int>(b * scalar));
+            return Color(r * scalar, g * scalar, b * scalar);
         }
 
         // addition operator for adding two colors
         CUDA_CALLABLE Color operator+(const Color &other) const {
-            return Color(static_cast<int>(r + other.r), static_cast<int>(g + other.g), static_cast<int>(b + other.b));
+            return Color(r + other.r, g + other.g, b + other.b);
         }
 
         // clamp method to ensure color values are within 0-255
@@ -41,11 +45,11 @@ class Color {
 
         // multiplication operator for component-wise color multiplication
         CUDA_CALLABLE Color operator*(const Color &other) const {
-            // Normalize to 0-1, multiply, then scale back to 0-255
+            // normalize to 0-1, multiply, then scale back to 0-255
             float nr = (r / 255.0f) * (other.r / 255.0f) * 255.0f;
             float ng = (g / 255.0f) * (other.g / 255.0f) * 255.0f;
             float nb = (b / 255.0f) * (other.b / 255.0f) * 255.0f;
-            return Color(static_cast<int>(nr), static_cast<int>(ng), static_cast<int>(nb));
+            return Color(nr, ng, nb);
         }
 };
 

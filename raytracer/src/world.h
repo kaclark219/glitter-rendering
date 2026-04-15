@@ -8,6 +8,7 @@
 #include "components/light.h"
 #include "components/illumination.h"
 #include "object.h"
+#include "objects/cube.h"
 #include "objects/sphere.h"
 #include "objects/triangle.h"
 
@@ -20,6 +21,7 @@
 // forward declarations for GPU structs
 #ifdef __CUDACC__
 struct SphereGPU;
+struct CubeGPU;
 struct TriangleGPU;
 #endif
 
@@ -53,15 +55,6 @@ class World {
         const std::vector<std::unique_ptr<Object>>& getObjects() const { return objectList; }
         const std::vector<std::unique_ptr<Light>>& getLights() const { return lightList; }
         const Color& getAmbientLight() const { return ambientLight; }
-
-        // trace ray and compute color at intersection point
-        Color trace(const Ray &ray, int depth) const {
-            // 1. find closest intersection of ray with objects in the world
-            // 2. if intersection occurs, compute color at that point using lighting & material properties
-            // 3. if depth > 0 & material is reflective, trace reflected ray & add its contribution to color
-            // 4. return computed color
-            return Color(0, 0, 0); // placeholder
-        }
 };
 
 // FOR GPU RENDERING (only available when compiling with CUDA)
@@ -76,6 +69,8 @@ struct WorldGPU {
     // GPU object arrays
     SphereGPU* spheres;
     int numSpheres;
+    CubeGPU* cubes;
+    int numCubes;
     TriangleGPU* triangles;
     int numTriangles;
     
@@ -84,6 +79,7 @@ struct WorldGPU {
         lights(nullptr), numLights(0), 
         ambientLight(Color(0, 0, 0)),
         spheres(nullptr), numSpheres(0),
+        cubes(nullptr), numCubes(0),
         triangles(nullptr), numTriangles(0) {}
 };
 #endif

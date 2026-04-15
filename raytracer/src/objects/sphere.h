@@ -71,7 +71,7 @@ class Sphere : public Object {
         }
 
         // compute UV coordinates from surface point (spherical mapping)
-        Point getUV(const Point& p) const {
+        Point getUV(const Point& p) const override {
             Vec3 normal = Vec3(p.getX() - center.getX(), p.getY() - center.getY(), p.getZ() - center.getZ());
             normal.normalize();
             

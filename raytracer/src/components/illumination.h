@@ -53,16 +53,15 @@ class PhongIllumination : public Illumination {
             
             if (texture != nullptr) {
                 Color textureSample = texture->sample(data.hit_point, data.uv_coords, data.normal);
-                // use texture color directly
-                diffuseColor = textureSample;
+                // blend procedural texture over the material's diffuse base coat
+                diffuseColor = material.getDiffuse() * textureSample;
                 
-                // Try to apply bump mapping if texture is a GlitterTexture
+                // try to apply bump mapping if texture is a GlitterTexture
                 const GlitterTexture* glitter = dynamic_cast<const GlitterTexture*>(texture);
                 if (glitter != nullptr) {
-                    // Apply subtle bump mapping to preserve brightness
+                    // subtle bump mapping to preserve brightness
                     effectiveNormal = glitter->bump_normal(data.hit_point, Point(0, 0, 0), data.normal, 0.15f);
                 }
-                // For all other texture types, effectiveNormal remains the geometric normal
             }
             
             Color result = material.getAmbient() * ambientLight;
@@ -92,7 +91,7 @@ class PhongIllumination : public Illumination {
                 }
                 if (inShadow) {
                     Color lightColor = light->getColor() * light->getIntensity();
-                    const float SHADOW_BOUNCE = 0.10f;
+                    const float SHADOW_BOUNCE = 0.0f;
                     result = result + (diffuseColor * lightColor * NdotL * SHADOW_BOUNCE);
                     continue;
                 }

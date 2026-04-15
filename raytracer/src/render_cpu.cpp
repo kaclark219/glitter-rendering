@@ -9,6 +9,7 @@
 #include "components/intersect_data.h"
 #include "world.h"
 #include "object.h"
+#include "objects/cube.h"
 #include "objects/sphere.h"
 #include "objects/triangle.h"
 #include "textures/checkerboard.h"
@@ -26,9 +27,9 @@ using std::unique_ptr;
 using std::make_unique;
 
 // global constants
-const int W = 800;
+const int W = 600;
 const int H = 600;
-const float FOV_DEG = 90.0f;
+const float FOV_DEG = 40.0f;
 const int MAX_DEPTH = 3;
 
 // helper functions
@@ -36,6 +37,63 @@ const int MAX_DEPTH = 3;
 static inline Point worldToCam(const Point& P, const Point& cam_pos, const Vec3& right, const Vec3& up, const Vec3& forward) {
     Vec3 v(P.getX() - cam_pos.getX(), P.getY() - cam_pos.getY(), P.getZ() - cam_pos.getZ());
     return Point(v.dot(right), v.dot(up), v.dot(forward));
+}
+
+static void addQuad(
+    std::vector<std::unique_ptr<Object>>& scene,
+    Point p0,
+    Point p1,
+    Point p2,
+    Point p3,
+    const Material& material,
+    const Point& cam_pos,
+    const Vec3& right,
+    const Vec3& up,
+    const Vec3& forward,
+    const Vec3& normalHint,
+    Texture* texture = nullptr
+) {
+    Vec3 edge1 = p1 - p0;
+    Vec3 edge2 = p2 - p0;
+    Vec3 normal = edge1.cross(edge2);
+    if (normal.dot(normalHint) < 0.0f) {
+        std::swap(p1, p3);
+    }
+
+    Point c0 = worldToCam(p0, cam_pos, right, up, forward);
+    Point c1 = worldToCam(p1, cam_pos, right, up, forward);
+    Point c2 = worldToCam(p2, cam_pos, right, up, forward);
+    Point c3 = worldToCam(p3, cam_pos, right, up, forward);
+
+    auto t1 = make_unique<Triangle>(c0, c1, c2);
+    t1->setMaterial(material);
+    t1->setTexture(texture);
+    scene.push_back(std::move(t1));
+
+    auto t2 = make_unique<Triangle>(c0, c2, c3);
+    t2->setMaterial(material);
+    t2->setTexture(texture);
+    scene.push_back(std::move(t2));
+}
+
+static Material tintedMatte(int r, int g, int b) {
+    Material material = Material::Matte();
+    material.setAmbient(Color(r / 4, g / 4, b / 4));
+    material.setDiffuse(Color(r, g, b));
+    material.setSpecular(Color(10, 10, 10));
+    material.setShininess(10.0f);
+    material.setReflectivity(0.0f);
+    return material;
+}
+
+static Material ceilingMatte() {
+    Material material = Material::Matte();
+    material.setAmbient(Color(150, 138, 120));
+    material.setDiffuse(Color(245, 232, 210));
+    material.setSpecular(Color(10, 10, 10));
+    material.setShininess(10.0f);
+    material.setReflectivity(0.0f);
+    return material;
 }
 
 static Color traceRay(
@@ -86,10 +144,7 @@ static Color traceRay(
     data.object = obj_hit;
     data.hit = true;
 
-    const Sphere* sphere = dynamic_cast<const Sphere*>(obj_hit);
-    if (sphere) {
-        data.uv_coords = sphere->getUV(hit_point);
-    }
+    data.uv_coords = obj_hit->getUV(hit_point);
 
     Color localColor = phong.computeLocalIllumination(
         data,
@@ -131,10 +186,9 @@ int renderCPU() {
     const float fov = FOV_DEG * 3.14159265358979323846f / 180.0f;
     const float aspect = (float)W / (float)H;
 
-    // camera from specifications.txt
-    Camera camera(Point(0.033089f, 0.765843f, -0.331214f), Vec3(0.033089f, 0.765843f, -1.331214f), Vec3(0.0f, 1.0f, 0.0f), FOV_DEG);
+    Camera camera(Point(278.0f, 273.0f, -800.0f), Vec3(278.0f, 273.0f, 0.0f), Vec3(0.0f, 1.0f, 0.0f), FOV_DEG);
     Point cam_pos = camera.getPosition();
-    Point cam_look(0.033089f, 0.765843f, -1.331214f);
+    Point cam_look(278.0f, 273.0f, 0.0f);
 
     // camera basis in world space
     Vec3 forward(cam_look.getX() - cam_pos.getX(), cam_look.getY() - cam_pos.getY(), cam_look.getZ() - cam_pos.getZ());
@@ -145,91 +199,114 @@ int renderCPU() {
     Vec3 up = right.cross(forward);
     up.normalize();
 
-    // create materials
-    Material matMatte = Material::Matte();     // back sphere
-    Material matMirror = Material::Mirror();   // front sphere
-    Material matRed(Color(20, 0, 0), Color(150, 0, 0), Color(10, 10, 10), 5.0f, 0.0f); // matte red floor
+    Material matFloor = tintedMatte(255, 255, 255);
+    Material matWhite = tintedMatte(230, 230, 230);
+    Material matCeiling = ceilingMatte();
+    Material matRed = tintedMatte(225, 85, 75);
+    Material matGreen = tintedMatte(100, 225, 115);
+    const Material matObject = tintedMatte(215, 215, 215);
+    Material matLight(Color(255, 255, 255), Color(255, 255, 255), Color(0, 0, 0), 1.0f, 0.0f);
+    Material matGlitterObject = matObject;
+    matGlitterObject.setSpecular(Color(225, 225, 225));
+    matGlitterObject.setShininess(72.0f);
 
-    // create world and add lights
+    matFloor.setAmbient(Color(70, 70, 70));
+    matWhite.setAmbient(Color(125, 125, 125));
+    matCeiling.setAmbient(Color(145, 140, 135));
+    matRed.setAmbient(Color(95, 35, 30));
+    matGreen.setAmbient(Color(35, 95, 40));
+
+    // cornell box scene setup
     World world;
-    world.setAmbientLight(Color(25, 25, 25)); // ambient light
-    
-    // light modified from specifications.txt to be more visible in render
+    world.setAmbientLight(Color(75, 75, 75));
     world.addLight(make_unique<PointLight>(
-        worldToCam(Point(0.10f, 2.2f, -0.9f), cam_pos, right, up, forward), // light position in camera space
-        Color(255, 255, 255), // white light
-        0.9f // intensity
+        worldToCam(Point(240.0f, 545.0f, 245.0f), cam_pos, right, up, forward),
+        Color(255, 255, 255),
+        1.7f
     ));
-
-    // second light - bright pink between camera and spheres
     world.addLight(make_unique<PointLight>(
-        worldToCam(Point(0.05f, 0.6f, -0.85f), cam_pos, right, up, forward), // light position in camera space
-        Color(255, 150, 255), // bright purple/white light
-        0.8f // intensity
+        worldToCam(Point(316.0f, 545.0f, 245.0f), cam_pos, right, up, forward),
+        Color(255, 255, 255),
+        1.7f
+    ));
+    world.addLight(make_unique<PointLight>(
+        worldToCam(Point(240.0f, 545.0f, 314.0f), cam_pos, right, up, forward),
+        Color(255, 255, 255),
+        1.7f
+    ));
+    world.addLight(make_unique<PointLight>(
+        worldToCam(Point(316.0f, 545.0f, 314.0f), cam_pos, right, up, forward),
+        Color(255, 255, 255),
+        1.7f
+    ));
+    world.addLight(make_unique<PointLight>(
+        worldToCam(Point(278.0f, 430.0f, -650.0f), cam_pos, right, up, forward),
+        Color(255, 255, 255),
+        0.20f
+    ));
+    world.addLight(make_unique<PointLight>(
+        worldToCam(Point(278.0f, 360.0f, -500.0f), cam_pos, right, up, forward),
+        Color(255, 255, 255),
+        0.04f
     ));
 
     // create illumination model
     PhongIllumination phong(world.getAmbientLight());
 
-    // create checkerboard texture for floor
-    // CheckerboardTexture checkerboard(Color(255, 0, 0), Color(255, 255, 0), 1.5f);
+    GlitterTexture glitter(Color(218, 223, 230), 22.0f);
+    // tint glitter purple
+    // glitter.setTintColor(Color(200, 180, 255));
 
-    // create perlin noise texture for floor
-    // NoiseTexture noiseTexture(2.0f, Color(0, 0, 0), Color(255, 255, 255));
-
-    // create glitter texture for floor
-    GlitterTexture glitter(Color(200, 200, 200), 96.0f);
-
-    // build scene in world coords
-    // sphere #1
-    Point s1c_world(0.498855f, 0.393785f, -1.932619f);
-    float s1r = 0.36358747f;
-
-    // sphere #2
-    Point s2c_world(0.026044f, 0.864156f, -1.366522f);
-    float s2r = 0.38744035f;
-
-    // floor as two triangles
-    Point floorCenter(1.991213f, -0.257648f, -2.878398f);
-    float fx = 6.148293f * 0.5f;
-    float fz = 5.984314f * 0.5f;
-    float fy = floorCenter.getY();
-    Point f00_world(floorCenter.getX() - fx, fy, floorCenter.getZ() - fz);
-    Point f10_world(floorCenter.getX() + fx, fy, floorCenter.getZ() - fz);
-    Point f01_world(floorCenter.getX() - fx, fy, floorCenter.getZ() + fz);
-    Point f11_world(floorCenter.getX() + fx, fy, floorCenter.getZ() + fz);
-
-    // convert scene to camera space
+    // build scene in camera space .. converted from world space using camera basis
     vector<unique_ptr<Object>> scene_cam;
 
-    // transform centers to camera space
-    Point s1c_cam = worldToCam(s1c_world, cam_pos, right, up, forward);
-    auto sphere1 = make_unique<Sphere>(s1c_cam, s1r);
-    sphere1->setMaterial(matMatte);
-    scene_cam.push_back(std::move(sphere1));
+    addQuad(scene_cam,
+        Point(552.8f, 0.0f, 0.0f), Point(0.0f, 0.0f, 0.0f), Point(0.0f, 0.0f, 559.2f), Point(549.6f, 0.0f, 559.2f),
+        matFloor, cam_pos, right, up, forward, Vec3(0.0f, 1.0f, 0.0f));
 
-    Point s2c_cam = worldToCam(s2c_world, cam_pos, right, up, forward);
-    auto sphere2 = make_unique<Sphere>(s2c_cam, s2r);
-    sphere2->setMaterial(matMirror);
-    scene_cam.push_back(std::move(sphere2));
+    addQuad(scene_cam,
+        Point(556.0f, 548.8f, 0.0f), Point(556.0f, 548.8f, 559.2f), Point(343.0f, 548.8f, 559.2f), Point(343.0f, 548.8f, 0.0f),
+        matCeiling, cam_pos, right, up, forward, Vec3(0.0f, -1.0f, 0.0f));
+    addQuad(scene_cam,
+        Point(213.0f, 548.8f, 0.0f), Point(213.0f, 548.8f, 559.2f), Point(0.0f, 548.8f, 559.2f), Point(0.0f, 548.8f, 0.0f),
+        matCeiling, cam_pos, right, up, forward, Vec3(0.0f, -1.0f, 0.0f));
+    addQuad(scene_cam,
+        Point(343.0f, 548.8f, 0.0f), Point(343.0f, 548.8f, 227.0f), Point(213.0f, 548.8f, 227.0f), Point(213.0f, 548.8f, 0.0f),
+        matCeiling, cam_pos, right, up, forward, Vec3(0.0f, -1.0f, 0.0f));
+    addQuad(scene_cam,
+        Point(343.0f, 548.8f, 332.0f), Point(343.0f, 548.8f, 559.2f), Point(213.0f, 548.8f, 559.2f), Point(213.0f, 548.8f, 332.0f),
+        matCeiling, cam_pos, right, up, forward, Vec3(0.0f, -1.0f, 0.0f));
 
-    // transform vertices to camera space
-    Point f00_cam = worldToCam(f00_world, cam_pos, right, up, forward);
-    Point f10_cam = worldToCam(f10_world, cam_pos, right, up, forward);
-    Point f01_cam = worldToCam(f01_world, cam_pos, right, up, forward);
-    Point f11_cam = worldToCam(f11_world, cam_pos, right, up, forward);
+    addQuad(scene_cam,
+        Point(353.0f, 548.79f, 217.0f), Point(353.0f, 548.79f, 342.0f), Point(203.0f, 548.79f, 342.0f), Point(203.0f, 548.79f, 217.0f),
+        matLight, cam_pos, right, up, forward, Vec3(0.0f, -1.0f, 0.0f));
 
-    auto t1 = make_unique<Triangle>(f00_cam, f10_cam, f11_cam);
-    t1->setMaterial(matRed);
-    t1->setTexture(&glitter);
-    scene_cam.push_back(std::move(t1));
-    auto t2 = make_unique<Triangle>(f00_cam, f11_cam, f01_cam);
-    t2->setMaterial(matRed);
-    t2->setTexture(&glitter);
-    scene_cam.push_back(std::move(t2));
+    addQuad(scene_cam,
+        Point(549.6f, 0.0f, 559.2f), Point(0.0f, 0.0f, 559.2f), Point(0.0f, 548.8f, 559.2f), Point(556.0f, 548.8f, 559.2f),
+        matWhite, cam_pos, right, up, forward, Vec3(0.0f, 0.0f, -1.0f));
+    addQuad(scene_cam,
+        Point(0.0f, 0.0f, 559.2f), Point(0.0f, 0.0f, 0.0f), Point(0.0f, 548.8f, 0.0f), Point(0.0f, 548.8f, 559.2f),
+        matGreen, cam_pos, right, up, forward, Vec3(1.0f, 0.0f, 0.0f));
+    addQuad(scene_cam,
+        Point(552.8f, 0.0f, 0.0f), Point(549.6f, 0.0f, 559.2f), Point(556.0f, 548.8f, 559.2f), Point(556.0f, 548.8f, 0.0f),
+        matRed, cam_pos, right, up, forward, Vec3(-1.0f, 0.0f, 0.0f));
 
-    // prep img with sky blue background
-    Image img(W, H, Color(135, 206, 235));
+    Point cubeCenterWorld(186.0f, 82.0f, 169.0f);
+    Point cubeCenterCam = worldToCam(cubeCenterWorld, cam_pos, right, up, forward);
+    auto cube = make_unique<Cube>(cubeCenterCam, 164.0f);
+    cube->setYawRadians(0.55f);
+    cube->setMaterial(matGlitterObject);
+    cube->setTexture(&glitter);
+    scene_cam.push_back(std::move(cube));
+
+    Point sphereCenterWorld(369.0f, 130.0f, 351.0f);
+    Point sphereCenterCam = worldToCam(sphereCenterWorld, cam_pos, right, up, forward);
+    auto sphere = make_unique<Sphere>(sphereCenterCam, 130.0f);
+    sphere->setMaterial(matGlitterObject);
+    sphere->setTexture(&glitter);
+    scene_cam.push_back(std::move(sphere));
+
+    Image img(W, H, Color(0, 0, 0));
 
     // ray trace in camera coords
     float scale = std::tan(fov * 0.5f);
@@ -257,7 +334,7 @@ int renderCPU() {
 
                     Vec3 ray_dir(px, py, 1.0f);
                     Ray ray(ray_origin, ray_dir);
-                    Color sampleColor = traceRay(ray, 1, phong, world.getLights(), scene_cam, Color(135, 206, 235));
+                    Color sampleColor = traceRay(ray, 1, phong, world.getLights(), scene_cam, Color(0, 0, 0));
 
                     accumR += sampleColor.r;
                     accumG += sampleColor.g;

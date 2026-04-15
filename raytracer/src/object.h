@@ -40,10 +40,14 @@ class Object {
         // surface normal (unit) at surface point p
         virtual Vec3 normal(const Point& p) const = 0;
 
+        // texture coordinates at surface point p
+        virtual Point getUV(const Point& p) const {
+            (void)p;
+            return Point(0.0f, 0.0f, 0.0f);
+        }
+
         // build polygons from triangles
         
 };
 
 #endif // RAYTRACER_OBJECT_H
-
-// need to add object list for k-d trees

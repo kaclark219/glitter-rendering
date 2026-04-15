@@ -1,3 +1,5 @@
 # ignore build files
-/raytracer/build/
-/raytracer/build/**
+/build/
+/build/**
+# ignore vscode settings
+/.vscode/

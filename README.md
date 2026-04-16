@@ -112,6 +112,7 @@ Run the GPU-parallelized render:
 Outputs are written to:
 
 - `output_img.ppm`
+- `output_img_gpu.ppm`
 - `output_viz_normal.ppm`
 - `output_viz_mask.ppm`
 - `output_viz_height.ppm`

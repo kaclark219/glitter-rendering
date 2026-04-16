@@ -8,7 +8,6 @@
 
 #include <cmath>
 #include <cstdint>
-#include <utility>
 
 #ifdef __CUDACC__
     #define CUDA_CALLABLE __host__ __device__
@@ -16,7 +15,13 @@
     #define CUDA_CALLABLE
 #endif
 
-using UV = std::pair<float, float>;
+struct UV {
+    float u;
+    float v;
+
+    CUDA_CALLABLE UV() : u(0.0f), v(0.0f) {}
+    CUDA_CALLABLE UV(float pu, float pv) : u(pu), v(pv) {}
+};
 
 struct Vec2 {
     float x;
@@ -312,7 +317,7 @@ CUDA_CALLABLE inline FlakeSample blend_flake_samples(const FlakeSample& a, float
 }
 
 CUDA_CALLABLE inline FlakeSample sample_glitter(const UV& uv, const GlitterParams& params) {
-    Vec2 p(uv.first * params.scale, uv.second * params.scale);
+    Vec2 p(uv.u * params.scale, uv.v * params.scale);
     p = warp2(p, params.seed + 20u, 0.65f);
 
     Vec2 ps(p.x + 0.5f * p.y, 0.8660254f * p.y);

@@ -126,6 +126,6 @@ Outputs are written to:
 - `src/render_cpu_visualization.cpp` - debug & visualization renders
 - `docs/images/` - PNG copies of the renderer outputs for this README
 
-## Takeaway
+## Takeaway + Future Work
 
-This goal of this project was to design a realistic glitter-like procedural surface material in my custom-built ray tracing system .. just because glitter is fun (while also being visually & technically complex)! I enjoyed getting to play around with different ideas & methodologies, & I'm really happy with the final product, especially the effects of the texture under colored lighting.
+This goal of this project was to design a realistic glitter-like procedural surface material in my custom-built ray tracing system .. just because glitter is fun (while also being visually & technically complex)! I enjoyed getting to play around with different ideas & methodologies, & I'm really happy with the final product, especially the effects of the texture under colored lighting. In the future, I think it would be interesting to learn about converting this custom texture to something that could be applied/imported to modeling programs like Blender, Adobe Substance, Unreal, etc..
